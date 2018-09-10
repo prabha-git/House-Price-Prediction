@@ -1,0 +1,142 @@
+---
+title: "Housing Prices - Lasso, xgboost"
+author: "Prabha"
+date: "9/9/2018"
+output: html_document
+---
+
+Inspired by this kernel https://www.kaggle.com/erikbruin/house-prices-lasso-xgboost-and-a-detailed-eda
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load_lib, message=FALSE, warning=TRUE}
+library(tidyverse)
+library(corrplot)
+library(caret)
+library(xgboost)
+```
+
+
+Below , i am reading the train / test csv as dataframes in R
+
+```{r load_data, message=FALSE, warning=FALSE}
+train=read_csv("datasets/train.csv")
+test=read_csv("datasets/test.csv")
+```
+
+Getting the dimensions of the dataset , and looks like difference between train and test is "SalePrice" as expected
+
+```{r}
+dim(train)
+dim(test)
+setdiff(colnames(train),colnames(test))
+```
+
+Getting rid of IDs from the dataframe , but we need to keep test_ids fro final submission to kaggle
+```{r}
+test_id=test$Id
+test$Id=NULL
+train$Id=NULL
+```
+
+combining both train and test for cleaning and feature engineering
+
+```{r}
+test$SalePrice=NA
+all=rbind(train,test)
+dim(all)
+```
+
+Exploring teh important variables
+
+1. Response Variable - SalePrice
+
+the sale price are right skewed. We need to handle this scenario before modeling.
+```{r}
+all %>% drop_na(SalePrice) %>% ggplot(aes(x=SalePrice))+geom_histogram(fill="blue",binwidth=10000)
+```
+
+
+```{r}
+summary(all$SalePrice)
+```
+
+
+Find the most important numeric predictors
+
+first focus on numeric predictors, there are 37 numeric columns including SalePrice
+
+```{r}
+all %>% select_if(is.numeric) %>% dim()
+all_numVar=all %>% select_if(is.numeric) 
+cor_numVar=cor(all_numVar,use="pairwise.complete.obs")
+```
+
+
+```{r}
+cor_sorted=as.matrix(sort(cor_numVar[,'SalePrice'],decreasing = TRUE))
+high_corr=names(cor_sorted[cor_sorted>0.5,])
+corr_numVar=cor_numVar[high_corr,high_corr]
+corrplot.mixed(corr_numVar,tl.pos="lt",tl.col="black")
+```
+
+
+lets explore 'overallqual' variable, there is definitively positive influence on the SalePrice
+
+```{r}
+all %>% drop_na(SalePrice) %>% ggplot(aes(x=as.factor(OverallQual),y=SalePrice))+geom_boxplot(col="blue")
+```
+
+
+Next 'GrLvArea' variable, there are two outliers with hign GrLivArea but low SalePrice
+```{r}
+all %>% drop_na(SalePrice) %>%ggplot(aes(x=GrLivArea,y=SalePrice))+geom_point(col='blue')+geom_smooth(method='lm',se=FALSE,col='black')
+```
+
+Handling missing data, label  encoding & factorizing variables
+find out the variables containing missing values, we have to fix 34 predictors
+
+```{r}
+NA_col=names(which(colSums(is.na(all))>0))
+sort(sort(colSums(is.na(all[,NA_col]))),decreasing = TRUE)
+cat('There are ',length(NA_col),' columsn with missing values')
+```
+
+
+Imputing missing data
+
+## {.tabset}
+
+### Pool
+The PoolQC is the variable with most NAs. 
+PoolQC : Pool quality
+
+Ex Excellent
+Gd Good
+TA Average/Typical
+Fa Fair
+NA No Pool
+
+It is obvious most houses will not have pools . these values can be converted as ordinal
+```{r}
+all$PoolQC[is.na(all$PoolQC)]='None'
+all$PoolQC=as.integer(recode(all$PoolQC,'None'=0,'po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+```
+
+There are three instances where PoolQC is missing while PoolArea is greater than zero. Iam going to impoute based on overall quality
+```{r}
+all %>% filter(PoolArea>0 & PoolQC==0) %>% select(PoolArea,PoolQC,OverallQual)
+all[all$PoolArea==368 & all$OverallQual==4,]['PoolQC']=2
+all[all$PoolArea==444 & all$OverallQual==6,]['PoolQC']=3
+all[all$PoolArea==561 & all$OverallQual==3,]['PoolQC']=2
+```
+
+
+second variable related to pool is poolArea
+
+### Tab2
+
+
