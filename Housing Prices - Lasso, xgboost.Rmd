@@ -152,4 +152,25 @@ all %>% drop_na(SalePrice) %>% ggplot(aes(x=MiscFeature,y=SalePrice))+geom_bar(s
 ```
 
 
+### Alley
+
+Convert values to factors as it is not ordinal
+```{r}
+table(all$Alley,exclude = NULL)
+```
+
+Grvl Gravel
+Pave Paved
+NA no alley access
+
+```{r}
+all=all %>% replace_na(list(Alley="None"))
+all$Alley=as.factor(all$Alley)
+```
+
+
+### Fence
+
+Fence has 2348 missing values, the value seems ordinal 
+
 
