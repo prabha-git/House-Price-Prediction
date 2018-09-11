@@ -135,8 +135,21 @@ all[all$PoolArea==561 & all$OverallQual==3,]['PoolQC']=2
 ```
 
 
-second variable related to pool is poolArea
 
-### Tab2
+### Miscellaneous Feature
+There are 2814 missing values in 'MiscFeature, As these values are nor ordinal i will convert into factors
+Gar2 2nd Garage (if not described in garage section)
+Othr Other
+Shed Shed (over 100 Sf)
+TenC Tennis Court
+NA None
+
+```{r}
+table(all$MiscFeature,exclude = NULL)
+all=all %>%  replace_na(list(MiscFeature="None"))
+all$MiscFeature=as.factor(all$MiscFeature)
+all %>% drop_na(SalePrice) %>% ggplot(aes(x=MiscFeature,y=SalePrice))+geom_bar(stat='summary',fun.y="median",fill='blue')+geom_label(stat="count",aes(label=..count..,y=..count..))
+```
+
 
 
