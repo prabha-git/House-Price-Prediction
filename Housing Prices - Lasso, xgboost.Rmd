@@ -202,6 +202,35 @@ LotFrontage : 486 NAs.  reasonable is impute meadian value per neighborhood
 
 ```{r}
 all %>% drop_na(LotFrontage,SalePrice) %>% ggplot(aes(x=as.factor(Neighborhood),y=SalePrice))+geom_bar(stat="summary",fun.y="median",fill="blue") + theme(axis.text.x = element_text(angle=45,hjust=1))
+
+all=all %>% group_by(Neighborhood) %>% mutate(LotFrontage=ifelse(is.na(LotFrontage),median(LotFrontage,na.rm=T),LotFrontage))
+```
+
+LotShape :No NAs , values seems ordinal
+   Reg  Regular 
+   IR1  Slightly irregular
+   IR2  Moderately Irregular
+   IR3  Irregular
+
+```{r}
+all$LotShape=as.integer(recode(all$LotShape,'IR3'=0,'IR2'=1,'IR1'=2,'Reg'=3))
+```
+
+LotConfig : No NAs. The value seems ordinal but visualizing it tells that it may not be ordinal. hence making it factor
+```{r}
+all %>% drop_na(LotFrontage,SalePrice) %>%ggplot(aes(x=as.factor(LotConfig),y=SalePrice))+geom_bar(stat="summary",fun.y="median",fill="blue") +theme(axis.text.x = element_text(angle=45,hjust=1))
+
+all$LotConfig=as.factor(all$LotConfig)
+
+table(all$LotConfig,exclude=NULL)
+```
+
+### Garage Variables
+There are 7 Garage varaiables ,
+```{r}
+garage_variables=grep("Garage*",colnames(all),value = TRUE)
+colSums(is.na(all[,garage_variables]))
 ```
 
 
+For GarageYrBlt i am 
