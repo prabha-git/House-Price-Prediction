@@ -96,6 +96,7 @@ Next 'GrLvArea' variable, there are two outliers with hign GrLivArea but low Sal
 all %>% drop_na(SalePrice) %>%ggplot(aes(x=GrLivArea,y=SalePrice))+geom_point(col='blue')+geom_smooth(method='lm',se=FALSE,col='black')
 ```
 
+
 Handling missing data, label  encoding & factorizing variables
 find out the variables containing missing values, we have to fix 34 predictors
 
@@ -171,6 +172,36 @@ all$Alley=as.factor(all$Alley)
 
 ### Fence
 
-Fence has 2348 missing values, the value seems ordinal 
+Fence has 2348 missing values, 
+
+```{r}
+table(all$Fence,exclude = NULL)
+all=all %>% replace_na(list(Fence="None"))
+table(all$Fence,exclude=NULL)
+all %>% drop_na(SalePrice) %>% group_by(Fence) %>% summarise(median=median(SalePrice),mean=mean(SalePrice),count=n())
+```
+
+at the first look Fence looks like an ordinal value but median value shown no fence house has higher median and mean prices , hence i will convert fence as factor
+```{r}
+all$Fence=as.factor(all$Fence)
+```
+
+### Fireplace varaibale
+
+Fireplace has NAs . Number of fireplace does not have any NAs.looks like NA is for the house with zero fireplaces
+
+```{r}
+table(all$FireplaceQu,all$Fireplaces,exclude=NULL)
+all=all %>% replace_na(list(FireplaceQu="None"))
+all$FireplaceQu=as.integer(recode(all$FireplaceQu,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+table(all$FireplaceQu)
+```
+
+### Lot variables
+LotFrontage : 486 NAs.  reasonable is impute meadian value per neighborhood
+
+```{r}
+all %>% drop_na(LotFrontage,SalePrice) %>% ggplot(aes(x=as.factor(Neighborhood),y=SalePrice))+geom_bar(stat="summary",fun.y="median",fill="blue") + theme(axis.text.x = element_text(angle=45,hjust=1))
+```
 
 
