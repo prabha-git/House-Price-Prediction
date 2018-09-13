@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r load_lib, message=FALSE, warning=TRUE}
 library(tidyverse)
+library(tidyimpute)
 library(corrplot)
 library(caret)
 library(xgboost)
@@ -233,4 +234,28 @@ colSums(is.na(all[,garage_variables]))
 ```
 
 
-For GarageYrBlt i am 
+For GarageYrBlt i am going to replace with YearBuilt variable
+
+```{r}
+all$GarageYrBlt[is.na(all$GarageYrBlt)]=all$YearBuilt[is.na(all$GarageYrBlt)]
+```
+
+
+lets check 157/159 missing values are the same observations . looks missing values are from the same observation
+
+```{r}
+length(which(is.na(all$GarageType) & is.na(all$GarageFinish) & is.na(all$GarageQual) & is.na(all$GarageCond)))
+```
+
+
+lets explore the two observations where GarageType has values. Observation 2127 does have seem have garage so lets imoute with common values
+```{r}
+all[which(!is.na(all$GarageType) & is.na(all$GarageFinish)),garage_variables]
+which(!is.na(all$GarageType) & is.na(all$GarageFinish))
+
+
+all$GarageCond[2127]=names(sort(table(all$GarageCond),decreasing = TRUE)[1])
+all$GarageQual[2127]=names(sort(table(all$GarageQual),decreasing = TRUE)[1])
+all$GarageFinish[2127]=names(sort(table(all$GarageFinish),decreasing = TRUE)[1])
+```
+
