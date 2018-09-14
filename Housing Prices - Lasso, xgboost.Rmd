@@ -1,7 +1,4 @@
----
-title: "Housing Prices - Lasso, xgboost"
-author: "Prabha"
-date: "9/9/2018"
+
 output: html_document
 ---
 
@@ -257,5 +254,174 @@ which(!is.na(all$GarageType) & is.na(all$GarageFinish))
 all$GarageCond[2127]=names(sort(table(all$GarageCond),decreasing = TRUE)[1])
 all$GarageQual[2127]=names(sort(table(all$GarageQual),decreasing = TRUE)[1])
 all$GarageFinish[2127]=names(sort(table(all$GarageFinish),decreasing = TRUE)[1])
+```
+
+
+Looks like this house does not have garage, hence making the garage varibale reflect it
+
+```{r}
+all[2577,garage_variables]
+
+all[2577,'GarageType']=NA
+all[2577,'GarageArea']=0
+all[2577,'GarageCars']=0
+```
+
+Below 4 varaibale has 158 NA
+```{r}
+colSums(is.na(all[,garage_variables]))
+```
+
+First looking at GarageType , below value does not seems ordinal. replcae NA with 'No Garage' and converting as factor
+
+```{r}
+table(all$GarageType,exclude=NULL)
+all=all %>% replace_na(list(GarageType="No Garage"))
+all$GarageType=as.factor(all$GarageType)
+```
+
+Second, GarageFinish looks like ordinal value.
+
+ Fin  Finished
+ RFn  Rough Finished  
+ Unf  Unfinished
+ NA   No Garage
+ 
+ 
+```{r}
+all=all %>% replace_na(list(GarageFinish='None'))
+all$GarageFinish=as.integer(recode(all$GarageFinish,'None'=0,'Unf'=1,'RFn'=2,'Fin'=3))
+table(all$GarageFinish,exclude = NULL)
+```
+
+third , GarageQual
+
+It is another ordinal value
+   Ex   Excellent
+   Gd   Good
+   TA   Typical/Average
+   Fa   Fair
+   Po   Poor
+   NA   No Garage
+   
+   
+```{r}
+all=all %>% replace_na(list(GarageQual='None'))
+all$GarageQual=as.integer(recode(all$GarageQual,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+table(all$GarageQual,exclude = NULL)
+```
+
+
+last GarageCondition , another ordinal variable
+
+```{r}
+all=all %>% replace_na(list(GarageCond='None'))
+all$GarageCond=as.integer(recode(all$GarageCond,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+table(all$GarageCond,exclude = NULL)
+```
+
+
+### Basement variables
+
+There are 11 basement features , 5 of those have 79 - 82 missing values . and remaining has 1 or 2 missing values.
+
+```{r}
+bsmt_features=grep("Bsmt*",colnames(all),value = TRUE)
+bsmt_features
+
+colSums(is.na(all[,bsmt_features]))
+```
+
+check if how manu missing values are from same observation
+```{r}
+length(which(is.na(all$BsmtQual) & is.na(all$BsmtCond) & is.na(all$BsmtExposure) & is.na(all$BsmtFinType2)))
+```
+
+Find the other NAs, BsmtFinType1 has 79 missing value.
+
+
+### Masonary Variables
+
+Two variables MasVnrType & MasVnrArea . MasVnrType has 24 missing and MasVnrArea has 23 missing
+```{r}
+MasV_variables=grep("MasV*",colnames(all),value = TRUE)
+colSums(is.na(all[MasV_variables]))
+```
+
+check if the missing values from both the observation are same and.... it looks like ther are the same observation
+
+```{r}
+sum(is.na(all$MasVnrArea) & is.na(all$MasVnrType))
+```
+
+find the observation with 1 extra missing MasvnrArea , Lets replace the missing value with 'BrkFace'
+```{r}
+all[which(!is.na(all$MasVnrArea) & is.na(all$MasVnrType)),c("MasVnrArea","MasVnrType")]
+all %>% group_by(MasVnrType) %>% summarise(median_Area=median(MasVnrArea),cnt=n())
+which(!is.na(all$MasVnrArea) & is.na(all$MasVnrType))
+all[2611,'MasVnrType']='BrkFace'
+```
+
+Replace the NA with 'None' in MasVnrType
+```{r}
+all=all %>% replace_na(list(MasVnrType='None'))
+```
+
+
+Looks like common brick and None are cheaper than other categories , will make the variable ordinal accordingly
+
+```{r}
+all %>% drop_na(SalePrice) %>% group_by(MasVnrType) %>% summarise(median=median(SalePrice),cnt=n()) %>% arrange(median)
+
+
+all$MasVnrType=as.integer(recode(all$MasVnrType,'BrkCmn'=0,'None'=0,'BrkFace'=1,'Stone'=2))
+
+table(all$MasVnrType,exclude =NULL)
+```
+
+Replace NULL with zeros in MasVnrArea column
+```{r}
+all=all %>% replace_na(list(MasVnrArea=0))
+summary(all$MasVnrArea)
+```
+
+
+### MSZoning 
+
+It has 4 NAs . Values are categorical.
+
+   A    Agriculture
+   C    Commercial
+   FV   Floating Village Residential
+   I    Industrial
+   RH   Residential High Density
+   RL   Residential Low Density
+   RP   Residential Low Density Park 
+   RM   Residential Medium Density
+   
+Lets impute with most common value and convert into factor   
+```{r}
+table(all$MSZoning,exclude = NULL)
+
+all$MSZoning[is.na(all$MSZoning)]=names(sort(table(all$MSZoning),decreasing = TRUE)[1])
+
+table(all$MSZoning,exclude = NULL)
+
+all$MSZoning=as.factor(all$MSZoning)
+```
+
+### Kitchen Variables
+
+KitchenQual : Kitchen quality
+It has just one missing variable
+
+```{r}
+table(all$KitchenQual,exclude = NULL)
+```
+
+replace that variable with most common value
+```{r}
+which(is.na(all$KitchenQual))
+
 ```
 
