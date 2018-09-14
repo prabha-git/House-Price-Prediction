@@ -422,6 +422,130 @@ table(all$KitchenQual,exclude = NULL)
 replace that variable with most common value
 ```{r}
 which(is.na(all$KitchenQual))
+all[1556,"KitchenQual"]="TA"
+all$KitchenQual=as.integer(recode(all$KitchenQual,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+
+table(all$KitchenQual,exclude = NULL)
+```
+
+Number of kitchens above grade
+No missing values
+```{r}
+table(all$KitchenAbvGr)
+```
+
+
+### Utilities
+All houses has all public utilities except one and 'NoSeWa' is in train . Hence this variable is useless . hence removing this variable .
+
+```{r}
+table(all$Utilities,exclude = NULL)
+
+all$Utilities=NULL
+```
+
+### Home Functionality
+Ordinal values (Salvage is worst and Typical is best)
+
+   Typ  Typical Functionality
+   Min1 Minor Deductions 1
+   Min2 Minor Deductions 2
+   Mod  Moderate Deductions
+   Maj1 Major Deductions 1
+   Maj2 Major Deductions 2
+   Sev  Severely Damaged
+   Sal  Salvage only
+Replace the null values with mode
+```{r}
+table(all$Functional,exclude=NULL)
+all=all %>% replace_na(list(Functional="Typ"))
+
+all$Functional=as.integer(recode(all$Functional,'Sal'=0,'Sev'=1,'Maj2'=2,'Maj1'=3,'Mod'=4,'Min2'=5,'Min1'=6,'Typ'=7))
 
 ```
+
+
+### Exterior Variable
+
+There are 4 Exterior variable. Exterior1st & Exterior2nd has one missing value each
+```{r}
+exterior_variable=grep("Exter*",colnames(all),value=T)
+exterior_variable
+colSums(is.na(all[,exterior_variable]))
+```
+
+Exterior1st - Impute with mode and convert as factor
+```{r}
+table(all$Exterior1st,exclude = NULL)
+which(is.na(all$Exterior1st))
+all[2152,"Exterior1st"]="VinylSd"
+
+all$Exterior1st=as.factor(all$Exterior1st)
+```
+
+Exterior2nd - Impute with mode and convert as factor
+
+```{r}
+table(all$Exterior2nd,exclude = NULL)
+which(is.na(all$Exterior2nd))
+all[2152,"Exterior2nd"]="VinylSd"
+```
+
+ExterQual
+Nominal values - lets convert to Nominal
+
+```{r}
+table(all$ExterQual,exclude = NULL)
+
+all$ExterQual=as.integer(recode(all$ExterQual,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+```
+
+
+ExterCond
+No Na. can be converted to Ordinal.
+
+```{r}
+table(all$ExterCond,exclude = NULL)
+all$ExterCond=as.integer(recode(all$ExterCond,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+```
+
+
+### Electrical system
+
+It is categorical feature. replace na with most common value and convert to factor
+```{r}
+table(all$Electrical,exclude = NULL)
+which(is.na(all$Electrical))
+all[1380,"Electrical"]="SBrkr"
+all$Electrical=as.factor(all$Electrical)
+```
+
+
+### SaleType and Condition
+
+SaleType
+Values are categorical, replace na with most common value and convert as factor
+
+```{r}
+table(all$SaleType,exclude = NULL)
+which(is.na(all$SaleType))
+all[2490,"SaleType"]="WD"
+all$SaleType=as.factor(all$SaleType)
+```
+
+Condtion of sale
+
+categorical value
+
+```{r}
+table(all$SaleCondition,exclude = NULL)
+
+all$SaleCondition=as.factor(all$SaleCondition)
+```
+
+
+
+
+
+
 
