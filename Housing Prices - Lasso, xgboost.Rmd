@@ -15,6 +15,9 @@ library(tidyimpute)
 library(corrplot)
 library(caret)
 library(xgboost)
+library(scales)
+library(gridExtra)
+library(corrplot)
 ```
 
 
@@ -45,6 +48,7 @@ combining both train and test for cleaning and feature engineering
 ```{r}
 test$SalePrice=NA
 all=rbind(train,test)
+all=all %>% mutate(row_name=row_number())
 dim(all)
 ```
 
@@ -339,6 +343,157 @@ length(which(is.na(all$BsmtQual) & is.na(all$BsmtCond) & is.na(all$BsmtExposure)
 
 Find the other NAs, BsmtFinType1 has 79 missing value.
 
+```{r}
+all %>% filter(!is.na(BsmtFinType1) & (is.na(BsmtQual) | is.na(BsmtCond) | is.na(BsmtExposure)  | is.na(BsmtFinType2))) %>%  select(row_name,BsmtQual,BsmtCond,BsmtExposure,BsmtFinType1,BsmtFinType2)
+```
+
+lets impute with most comman value
+
+```{r}
+table(all$BsmtQual,exclude = NULL)
+all[c(2218, 2219),"BsmtQual"]='TA'
+
+
+table(all$BsmtExposure,exclude = NULL)
+all[c(949, 1488, 2349),"BsmtExposure"]='No'
+
+
+table(all$BsmtFinType2,exclude = NULL)
+all[333,"BsmtFinType2"]='Unf'
+
+table(all$BsmtCond,exclude = NULL)
+all[c(2041, 2186, 2525),"BsmtCond"]='TA'
+```
+
+
+BsmtQual 
+This can be made as ordinal , replace NA with 'None'
+```{r}
+all=all %>% replace_na(list(BsmtQual='None'))
+table(all$BsmtQual,exclude = NULL)
+
+all$BsmtQual=as.integer(recode(all$BsmtQual,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+
+table(all$BsmtQual,exclude = NULL)
+```
+
+BsmtCond
+This can be made ordinal, replace NA with 'None'
+
+```{r}
+table(all$BsmtCond,exclude = NULL)
+all=all %>% replace_na(list(BsmtCond='None'))
+table(all$BsmtCond,exclude = NULL)
+
+all$BsmtCond=as.integer(recode(all$BsmtCond,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+
+table(all$BsmtCond,exclude = NULL)
+```
+
+
+
+BsmtExposure
+This can be made ordinal, replace NA with 'None'
+
+```{r}
+table(all$BsmtExposure,exclude = NULL)
+all=all %>% replace_na(list(BsmtExposure='None'))
+table(all$BsmtExposure,exclude = NULL)
+
+all$BsmtExposure=as.integer(recode(all$BsmtExposure,'None'=0, 'No'=1, 'Mn'=2, 'Av'=3, 'Gd'=4))
+
+table(all$BsmtExposure,exclude = NULL)
+```
+
+BsmtFinType1
+This variable can be made ordinal
+
+   GLQ  Good Living Quarters
+   ALQ  Average Living Quarters
+   BLQ  Below Average Living Quarters   
+   Rec  Average Rec Room
+   LwQ  Low Quality
+   Unf  Unfinshed
+   NA   No Basement
+   
+```{r}
+all=all %>% replace_na(list(BsmtFinType1='None'))
+all$BsmtFinType1=as.integer(recode(all$BsmtFinType1,'None'=0, 'Unf'=1, 'LwQ'=2, 'Rec'=3, 'BLQ'=4, 'ALQ'=5, 'GLQ'=6))
+
+
+```
+
+
+
+BsmtFinType2
+This variable can be made ordinal
+
+```{r}
+table(all$BsmtFinType2,exclude = NULL)
+all=all %>% replace_na(list(BsmtFinType2='None'))
+
+all$BsmtFinType2=as.integer(recode(all$BsmtFinType2,'None'=0, 'Unf'=1, 'LwQ'=2, 'Rec'=3, 'BLQ'=4, 'ALQ'=5, 'GLQ'=6))
+
+table(all$BsmtFinType2,exclude = NULL)
+```
+
+
+Still 6 bsmt variable with 1 or 2 missing values
+```{r}
+colSums(is.na(all[,bsmt_features]))
+```
+
+
+```{r}
+all[is.na(all$BsmtFinSF1) | is.na(all$BsmtFinSF2) | is.na(all$BsmtUnfSF) | is.na(all$TotalBsmtSF) | is.na(all$BsmtFullBath) | is.na(all$BsmtHalfBath),c('row_name',bsmt_features)]
+```
+
+remaining 79 observations does not have basement , hence lets fix these 2 observation 
+
+BsmtFullBath - Replace nulls with zero
+```{r}
+table(all$BsmtFullBath,exclude = NULL)
+all=all %>% replace_na(list(BsmtFullBath=0))
+```
+
+BsmtHalfBath - Replace nulls with zero
+```{r}
+table(all$BsmtHalfBath,exclude = NULL)
+all=all %>% replace_na(list(BsmtHalfBath=0))
+```
+
+BsmtFinSF1 - Replace nulls with zero
+```{r}
+table(all$BsmtFinSF1,exclude = NULL)
+all=all %>% replace_na(list(BsmtFinSF1=0))
+```
+
+
+
+BsmtFinSF2 - Replace nulls with zero
+```{r}
+table(all$BsmtFinSF2,exclude = NULL)
+all=all %>% replace_na(list(BsmtFinSF2=0))
+```
+
+
+
+BsmtUnfSF - Replace nulls with zero
+```{r}
+table(all$BsmtUnfSF,exclude = NULL)
+all=all %>% replace_na(list(BsmtUnfSF=0))
+```
+
+
+
+TotalBsmtSF - Replace nulls with zero
+```{r}
+table(all$TotalBsmtSF,exclude = NULL)
+all=all %>% replace_na(list(TotalBsmtSF=0))
+```
+
+
+
 
 ### Masonary Variables
 
@@ -489,6 +644,7 @@ Exterior2nd - Impute with mode and convert as factor
 table(all$Exterior2nd,exclude = NULL)
 which(is.na(all$Exterior2nd))
 all[2152,"Exterior2nd"]="VinylSd"
+all$Exterior2nd=as.factor(all$Exterior2nd)
 ```
 
 ExterQual
@@ -545,7 +701,244 @@ all$SaleCondition=as.factor(all$SaleCondition)
 
 
 
+Character Variables
 
+There are 15 char features.
+
+```{r}
+char_features=all %>% select_if(is.character) %>% colnames(.)
+char_features
+```
+
+## {.tabset}
+
+### Foundation 
+
+Lets replace this as factor variable
+
+    BrkTil          Brick & Tile
+    CBlock          Cinder Block
+    PConc           Poured Contrete 
+    Slab            Slab
+    Stone           Stone
+    Wood            Wood
+```{r}
+table(all$Foundation)
+all$Foundation=as.factor(all$Foundation)
+```
+
+### Heating and Air conditioning
+
+
+Heating , convert into factor
+```{r}
+table(all$Heating)
+all$Heating=as.factor(all$Heating)
+```
+
+HeatingQC , looks like ordinal value . can be converted to ordinal
+```{r}
+table(all$HeatingQC)
+all$HeatingQC=as.integer(recode(all$HeatingQC,'None'=0,'Po'=1,'Fa'=2,'TA'=3,'Gd'=4,'Ex'=5))
+
+```
+
+CentralAir - Can be converted into nominal value
+
+```{r}
+table(all$CentralAir)
+all$CentralAir=as.integer(recode(all$CentralAir,'N'=0,'Y'=1))
+```
+
+
+### Roof
+
+RoofStyle - convert to factor
+
+```{r}
+table(all$RoofStyle)
+all$RoofStyle=as.factor(all$RoofStyle)
+```
+
+
+RoofMatl - convert to factor
+
+```{r}
+table(all$RoofMatl)
+all$RoofMatl=as.factor(all$RoofMatl)
+```
+
+
+### Land
+
+LandContour - convert to factors
+
+```{r}
+table(all$LandContour)
+
+all$LandContour=as.factor(all$LandContour)
+```
+
+
+LandSlope - convert to factors
+```{r}
+table(all$LandSlope)
+
+all$LandSlope=as.integer(recode(all$LandSlope,'Sev'=0, 'Mod'=1, 'Gtl'=2))
+```
+
+
+### Building Type
+
+BldgType - convert as factors
+
+```{r}
+table(all$BldgType)
+all$BldgType=as.factor(all$BldgType)
+```
+
+
+HouseStyle - convert to factor
+
+```{r}
+table(all$HouseStyle)
+all$HouseStyle=as.factor(all$HouseStyle)
+```
+
+
+### Neighborhood 
+
+Neighboorhood - convert to factors
+
+```{r}
+table(all$Neighborhood)
+all$Neighborhood=as.factor(all$Neighborhood)
+```
+
+
+Condition1 & condition2- convert to factor
+
+```{r}
+table(all$Condition1)
+all$Condition1=as.factor(all$Condition1)
+
+table(all$Condition2)
+all$Condition2=as.factor(all$Condition2)
+```
+
+
+### Street & Driveaway
+
+Street - Ordinal 
+```{r}
+table(all$Street)
+
+all$Street=as.integer(recode(all$Street,"Grvl"=0,"Pave"=1))
+```
+
+PavedDrive - convert to ordinal
+
+   Y    Paved 
+   P    Partial Pavement
+   N    Dirt/Gravel
+
+```{r}
+table(all$PavedDrive)
+
+all$PavedDrive=as.integer(recode(all$PavedDrive,'N'=0,'P'=1,'Y'=2))
+```
+
+
+Changing numerical variable to factors
+
+At this point , all the missing values are imputed and char features are converterd as either numeric or factors
+
+Year and Month sold
+
+since House sold in december does not fetch high value than the houses sold in January . Converting Monthsold a s factor
+
+
+```{r}
+table(all$MoSold)
+all$MoSold=as.factor(all$MoSold)
+```
+
+
+Median prices by year and by month. we can see median hous price decreasing after 2007 due to financial crisis. Also seasonility seems to play big role.
+
+```{r}
+yr_plot=all %>% drop_na(SalePrice) %>% ggplot(aes(x=YrSold,y=SalePrice)) + geom_bar(stat="summary",fun.y="median",fill="blue")+scale_y_continuous(breaks=seq(0,800000,by=25000),label = comma)+coord_cartesian(ylim=c(0,200000))+geom_hline(yintercept =163000,linetype="dashed",color="red")
+
+mo_plot=all %>% drop_na(SalePrice) %>% ggplot(aes(x=MoSold,y=SalePrice)) + geom_bar(stat="summary",fun.y="median",fill="blue")+scale_y_continuous(breaks=seq(0,800000,by=25000),label = comma)+coord_cartesian(ylim=c(0,200000))+geom_hline(yintercept =163000,linetype="dashed",color="red")
+
+
+grid.arrange(yr_plot,mo_plot,widths=c(1,2))
+```
+
+
+### MSSubClass
+
+it is the numerical value but should be encoded as categories.
+
+```{r}
+table(all$MSSubClass)
+
+all$MSSubClass=as.factor(all$MSSubClass)
+
+all$MSSubClass=recode(all$MSSubClass,'20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion')
+
+
+table(all$MSSubClass)
+```
+
+
+
+Correlations
+
+```{r}
+numeric_feature=which(sapply(all,is.numeric))
+
+numeric_feature
+
+factor_feature=which(sapply(all,is.factor))
+factor_feature
+
+all_num_feature=all[,numeric_feature]
+
+# Finding correlation of all numric features
+cor_numVar=cor(all_num_feature,use="pairwise.complete.obs")
+
+#Sort on decreasing correlation with SalePrice
+cor_sorted=as.matrix(sort(cor_numVar[,"SalePrice"],decreasing = T))
+
+#select only the correlation above 0.5
+high_cor_num_features=names(which(apply(cor_sorted,1,function (x) abs(x)>0.5)))
+
+cor_numVar=cor_numVar[high_cor_num_features,high_cor_num_features]
+
+corrplot.mixed(cor_numVar,tl.pos="lt",tl.col="black",tl.cex = 0.7,cl.cex = .7, number.cex=.7)
+```
+
+
+
+Remove row_name and rename variables start with number
+
+```{r}
+all$row_name=NULL
+
+all=all %>% rename(`X1stFlrSF`=`1stFlrSF`,`X2ndFlrSF`=`2ndFlrSF`,`X3SsnPorch`=`3SsnPorch`)
+```
+
+
+As you can see number of variables with high (0.5) correlation increased to 16 from 10.
+
+
+
+Finding the variable importance using RandomForest
+
+```{r}
+quickRF=all %>% drop_na(SalePrice) %>% randomForest::randomForest(SalePrice~.,ntree=100,importance=T,data=.)
+```
 
 
 
