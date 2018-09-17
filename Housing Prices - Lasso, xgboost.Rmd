@@ -17,7 +17,10 @@ library(caret)
 library(xgboost)
 library(scales)
 library(gridExtra)
+library(grid)
 library(corrplot)
+library(psych)
+library(randomForest)
 ```
 
 
@@ -43,12 +46,15 @@ test$Id=NULL
 train$Id=NULL
 ```
 
-combining both train and test for cleaning and feature engineering
+combining both train and test for cleaning and feature engineering and rename columns with number
 
 ```{r}
 test$SalePrice=NA
 all=rbind(train,test)
 all=all %>% mutate(row_name=row_number())
+
+
+all=all %>% rename(`X1stFlrSF`=`1stFlrSF`,`X2ndFlrSF`=`2ndFlrSF`,`X3SsnPorch`=`3SsnPorch`)
 dim(all)
 ```
 
@@ -91,6 +97,7 @@ lets explore 'overallqual' variable, there is definitively positive influence on
 ```{r}
 all %>% drop_na(SalePrice) %>% ggplot(aes(x=as.factor(OverallQual),y=SalePrice))+geom_boxplot(col="blue")
 ```
+
 
 
 Next 'GrLvArea' variable, there are two outliers with hign GrLivArea but low SalePrice
@@ -205,7 +212,8 @@ LotFrontage : 486 NAs.  reasonable is impute meadian value per neighborhood
 ```{r}
 all %>% drop_na(LotFrontage,SalePrice) %>% ggplot(aes(x=as.factor(Neighborhood),y=SalePrice))+geom_bar(stat="summary",fun.y="median",fill="blue") + theme(axis.text.x = element_text(angle=45,hjust=1))
 
-all=all %>% group_by(Neighborhood) %>% mutate(LotFrontage=ifelse(is.na(LotFrontage),median(LotFrontage,na.rm=T),LotFrontage))
+all=all %>% group_by(Neighborhood) %>% mutate(LotFrontage=ifelse(is.na(LotFrontage),median(LotFrontage,na.rm=T),LotFrontage)) %>% 
+  ungroup()
 ```
 
 LotShape :No NAs , values seems ordinal
@@ -921,12 +929,10 @@ corrplot.mixed(cor_numVar,tl.pos="lt",tl.col="black",tl.cex = 0.7,cl.cex = .7, n
 
 
 
-Remove row_name and rename variables start with number
+Remove row_name 
 
 ```{r}
 all$row_name=NULL
-
-all=all %>% rename(`X1stFlrSF`=`1stFlrSF`,`X2ndFlrSF`=`2ndFlrSF`,`X3SsnPorch`=`3SsnPorch`)
 ```
 
 
@@ -937,8 +943,482 @@ As you can see number of variables with high (0.5) correlation increased to 16 f
 Finding the variable importance using RandomForest
 
 ```{r}
+set.seed(2018)
 quickRF=all %>% drop_na(SalePrice) %>% randomForest::randomForest(SalePrice~.,ntree=100,importance=T,data=.)
+
+imp_RF=importance(quickRF)
+imp_DF=data.frame(variables=row.names(imp_RF),MSE=imp_RF[,1])
+imp_DF=imp_DF %>% arrange(desc(MSE))
+
+
+imp_DF[1:20,] %>% ggplot(aes(x=reorder(variables,MSE),y=MSE,fill=MSE))+geom_bar(stat="identity")+coord_flip()
 ```
+
+
+Lets take a look at it square feet varaibale. looks like GrLivArea is sum of 1stFlrSf , 2ndFlrSF & LowQualFinSf
+
+```{r}
+all %>% select(GrLivArea,X1stFlrSF,X2ndFlrSF,LowQualFinSF)
+
+cor(all$GrLivArea,(all$X1stFlrSF+all$X2ndFlrSF+all$LowQualFinSF))
+```
+
+
+Lets explore the neighbourhood varaiable
+
+```{r}
+n1=all %>% drop_na(SalePrice) %>% ggplot(aes(x=Neighborhood,y=SalePrice))+
+  geom_bar(stat="summary",fun.y='median',fill='blue')+
+  scale_y_continuous(breaks = seq(0,800000,by=50000),labels = comma) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(yintercept = 163000,linetype="dashed",color="red") +
+  geom_label(stat="count",aes(label=..count..,y=..count..),size=3)
+
+
+n2=all %>% ggplot(aes(x=Neighborhood))+geom_histogram(stat="count")+theme(axis.text.x = element_text(angle = 45))+geom_label(stat="count",aes(label=..count..,y=..count..))
+
+
+grid.arrange(n1,n2)
+```
+
+
+Overall Quality, and other quality variables
+
+```{r}
+q1=all %>% ggplot(aes(x=as.factor(OverallQual))) +
+  geom_histogram(stat="count")
+
+q2=all %>% ggplot(aes(x=as.factor(ExterQual))) +
+  geom_histogram(stat="count")
+
+q3=all %>% ggplot(aes(x=as.factor(BsmtQual))) +
+  geom_histogram(stat="count")
+
+q4=all %>% ggplot(aes(x=as.factor(KitchenQual))) +
+  geom_histogram(stat="count")
+
+q5=all %>% ggplot(aes(x=as.factor(GarageQual))) +
+  geom_histogram(stat="count")
+
+q6=all %>% ggplot(aes(x=as.factor(FireplaceQu))) +
+  geom_histogram(stat="count")
+
+q7=all %>% ggplot(aes(x=as.factor(PoolQC))) +
+  geom_histogram(stat="count")
+
+grid.arrange(q1,q2,q3,q4,q5,q6,q7)
+
+```
+
+PoolQC is very sparse
+
+The second most important categorical: MSSubClass
+
+```{r}
+ms1=all %>% drop_na(SalePrice) %>% ggplot(aes(x=MSSubClass,y=SalePrice))+
+  geom_bar(stat="summary",fun.y='median',fill='blue')+
+  scale_y_continuous(breaks = seq(0,800000,by=50000),labels = comma) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(yintercept = 163000,linetype="dashed",color="red") +
+  geom_label(stat="count",aes(label=..count..,y=..count..),size=3)
+
+
+ms2=all %>% ggplot(aes(x=MSSubClass))+geom_histogram(stat="count")+theme(axis.text.x = element_text(angle = 45))+geom_label(stat="count",aes(label=..count..,y=..count..))
+
+
+grid.arrange(ms1,ms2)
+```
+
+Garage variables
+
+```{r}
+g1=all %>% ggplot(aes(x=as.factor(GarageCars)))+
+  geom_histogram(stat="count")
+
+g2=all %>% ggplot(aes(x=GarageYrBlt))+
+  geom_histogram()
+
+g3=all %>% ggplot(aes(x=GarageArea))+
+  geom_density()
+
+g4=all %>% ggplot(aes(x=as.factor(GarageCond)))+
+  geom_histogram(stat="count")
+
+
+g5=all %>% ggplot(aes(x=as.factor(GarageType)))+
+  geom_histogram(stat="count")
+
+
+g6=all %>% ggplot(aes(x=as.factor(GarageQual)))+
+  geom_histogram(stat="count")
+
+
+g7=all %>% ggplot(aes(x=as.factor(GarageFinish)))+
+  geom_histogram(stat="count")
+
+grid.arrange(g1,g2,g3,g4,g5,g6,g7)
+```
+
+
+Lets fix the typo "2207" in the garageyrblt
+```{r}
+summary(all$GarageYrBlt)
+
+
+
+all$GarageYrBlt[all$GarageYrBlt==2207]=2007
+```
+
+
+
+Feature Engineering
+
+1. Bathroom
+There are 4 varaiables . Going to create a new varaiable total bathroom .
+
+Now total bathroom has positivly correlated with saleprice (actually 0.63! )
+```{r}
+bathroom_variables=grep("*Bath*",colnames(all),value=T)
+
+all=all %>% 
+  mutate(TotalBathrooms=BsmtFullBath+BsmtHalfBath*.5+FullBath+HalfBath*.5)
+
+
+p1=all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=as.factor(TotalBathrooms),y=SalePrice))+
+  geom_point(col='blue')+
+  geom_smooth(method = 'lm',color='black',se=FALSE,aes(group=1))
+
+p2=all %>% ggplot(aes(x=as.factor(TotalBathrooms))) +
+  geom_histogram(stat="count")
+
+grid.arrange(p1,p2)
+
+cor(all[!is.na(all$SalePrice),'TotalBathrooms'],all[!is.na(all$SalePrice),'SalePrice'])
+```
+
+Adding House age
+
+There are 3 year variable in the dataset , YrBulit,YearRemodAdd and YearSold . YearRemodAdd defaults to YrBuilt if no remodeling is done . So Age feature is derived from YearSold - YearRemodAdd. Also ia m going to add feature Remodeled (Yes/ No) feature to indicat ethis house was remodeled.
+
+as you see in the below chart , Age is negetively correlated with SalePrice.
+
+```{r}
+all$Age=all$YrSold-all$YearRemodAdd
+
+all$Remod=ifelse(all$YearRemodAdd>all$YearBuilt,1,0)
+
+all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=Age,y=SalePrice))+geom_point(col='blue')+
+  geom_smooth(method='lm')
+
+
+cor(all[!is.na(all$SalePrice),'Age'],all[!is.na(all$SalePrice),'SalePrice'])
+```
+
+
+As you can see remodeled houses are lower price compared to non remodeled house.
+```{r}
+all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=Remod,y=SalePrice))+
+  geom_bar(stat='summary',fun.y='median',fill='blue')+
+  geom_hline(yintercept = 163000,linetype="dashed",col='red')
+```
+
+
+Finally i am creating the isNew feature , to indicate the house was built on the year when it was sold. As you can see new houses worth more than old houses
+
+```{r}
+all$isNew=ifelse(all$YearBuilt==all$YrSold,1,0)
+
+all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=isNew,y=SalePrice))+
+  geom_bar(stat='summary',fun.y='median',fill='blue')+
+  geom_hline(yintercept = 163000,linetype="dashed",col='red')
+
+
+all$YrSold=as.factor(all$YrSold)
+```
+
+Binning Neighboorhood
+
+
+
+```{r}
+p1=all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=reorder(Neighborhood,SalePrice),y=SalePrice))+
+  geom_bar(stat="summary",fun.y='median',fill='blue')+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+labs(title="Median")
+
+
+p2=all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=reorder(Neighborhood,SalePrice),y=SalePrice))+
+  geom_bar(stat="summary",fun.y='mean',fill='blue')+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+labs(title="Mean")
+
+grid.arrange(p1,p2)
+```
+
+Based on the chart above , going to create three groups
+
+```{r}
+all=all %>% mutate(NeighRich=ifelse(Neighborhood %in% c("StoneBr","NridgHt","NoRidge"),2,
+                                ifelse(Neighborhood %in% c("MeadowV","IDOTRR","BrDale"),0,1)))
+```
+
+Total Squarefeet
+
+
+creating the total square feet feature . As expected 
+```{r}
+all$TotalSqfeet=all$GrLivArea+all$TotalBsmtSF
+
+all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=TotalSqfeet,y=SalePrice))+
+  geom_point(col='blue')+
+  geom_smooth(method='lm',se=FALSE,col='black')
+
+
+cor(all[!is.na(all$SalePrice),"SalePrice"],all[!is.na(all$SalePrice),"TotalSqfeet"])
+```
+
+As expected TotalSqfeet is highly corrlated (0.77)
+
+
+Consolidating the Porch variable, but correlation is not high (0.19)
+
+```{r}
+all$TotalPorchSF=all$OpenPorchSF+all$EnclosedPorch+all$X3SsnPorch+all$ScreenPorch
+
+
+all %>% drop_na(SalePrice) %>% 
+  ggplot(aes(x=TotalPorchSF,y=SalePrice))+
+  geom_point(col='blue')+
+  geom_smooth(method='lm',se=FALSE,col='black')
+
+
+cor(all[!is.na(all$SalePrice),"SalePrice"],all[!is.na(all$SalePrice),"TotalPorchSF"])
+```
+
+
+
+Preparing data for modeling
+
+Droping the highly correlated variables , for example Garage cars and Garage Area has higly correlated (0.89) between two i am going to drop GarageArea which has lower correlation with SalePrice.
+
+```{r}
+drop_var=c('YearRemodAdd','GarageArea','GarageYrBlt','TotRmsAbvGrd','TotalBsmtSF','ExterQual','GarageCond')
+
+all=all %>% select(-drop_var)
+```
+
+
+Removing Outlier
+
+For timebeing i am going to remove the two outlier house which are big but fetched low price.
+
+```{r}
+all = all[-c(524, 1299),]
+```
+
+Preprocessing predictor variable
+
+```{r}
+all_numVar=names(all_numVar)[!(names(all_numVar) %in% c('MSSubClass', 'MoSold', 'YrSold', 'SalePrice', 'OverallQual', 'OverallCond'))]
+
+all_numVar=append(all_numVar,c('Age','TotalPorchSF','TotalBathrooms','TotalSqfeet'))
+
+
+DF_Numeric=all[,names(all) %in% all_numVar]
+
+DF_Factor=all[,!colnames(all) %in% all_numVar]
+DF_Factor=DF_Factor[,colnames(DF_Factor) != 'SalePrice']
+
+cat('There are ',length(DF_Numeric),' numeric variables and ',length(DF_Factor) ,' factor variables')
+```
+
+
+Skewness and normalizing the numeric predictors 
+
+Skewness is a measure of the symmetry in a distribution. A symmetrical dataset will have a skewness of zero . Skewness measure the relative size of teh two tails. Skewness of +1 to -1 is considered to be fairly symmetrical.
+
+Going to log transform the variables if the skewness is greater than 0.8.
+
+```{r}
+skewed_features=names(which(abs(sapply(DF_Numeric,skew))>0.8))
+
+DF_Numeric=DF_Numeric %>%
+   mutate_at(vars(skewed_features),funs(log(.+1)))
+```
+
+
+Normalizing the data.
+```{r}
+preNum=preProcess(DF_Numeric,method=c("center","scale"))
+preNum
+
+
+DFnorm=predict(preNum,DF_Numeric)
+dim(DFnorm)
+```
+
+
+One hot encoding
+The last step needed to ensure that all predictors are converted into numeric columns is to one-hot encode'
+
+```{r}
+DF_Dummies=as.data.frame(model.matrix(~.-1,DF_Factor))
+dim(DF_Dummies)
+```
+
+
+Removing labels with few or no observations in train or test
+
+```{r}
+ZeroColTest=which(colSums(DF_Dummies[(nrow(all[!is.na(all$SalePrice),])+1):nrow(all),])==0)
+  
+colnames(DF_Dummies[ZeroColTest])
+  
+```
+
+
+Removing predictors
+```{r}
+DFdummies=DF_Dummies[,-ZeroColTest]
+```
+
+Doing the same test for training test .
+
+```{r}
+ZeroColTrain=which(colSums(DF_Dummies[1:(nrow(all[!is.na(all$SalePrice),])),])==0)
+
+ZeroColTrain
+```
+
+Removing the predictor
+
+```{r}
+DFdummies=DFdummies[,-ZeroColTrain]
+```
+
+Also taking out variables with less than 10 ones in the train set.
+
+```{r}
+fewOnes=which(colSums(DFdummies[1:(nrow(all[!is.na(all$SalePrice),])),])<10)
+
+colnames(DFdummies[fewOnes])
+```
+
+Taking out the featueres with less than 10 'ones' in the train set.
+```{r}
+DFdummies=DFdummies[,-fewOnes]
+
+dim(DFdummies)
+```
+
+
+Lets combine numeric and factor predictor
+```{r}
+combined=cbind(DFnorm,DFdummies)
+```
+
+
+Dealing with skewness of response variable
+
+```{r}
+skew(all$SalePrice)
+```
+
+
+```{r}
+qqnorm(all$SalePrice)
+qqline(all$SalePrice)
+```
+
+Skew of 1.87 indicates right skew ,and the Q-Q plot shows that saleprice is not normally distributed. So i am taking log transformation . Now skew is quite low
+
+```{r}
+all$SalePrice=log(all$SalePrice)
+skew(all$SalePrice)
+
+qqnorm(all$SalePrice)
+qqline(all$SalePrice)
+```
+
+Composing train and test sets
+
+```{r}
+train1=combined[!is.na(all$SalePrice),]
+test1=combined[is.na(all$SalePrice),]
+```
+
+Modeling
+
+Lasso regression model
+
+Below , i am using caret cross validation to tune lambda which is the only hyper parameter that needs to be tuned for the lasso model.
+
+```{r}
+set.seed(27042018)
+
+my_control=trainControl(method = "cv",number=5)
+lassoGrid=expand.grid(alpha=1,lambda=seq(0.001,0.1,by=0.005))
+
+lasso_mod = train(x=train1, y=all$SalePrice[!is.na(all$SalePrice)],
+                   method='glmnet',
+                   trControl=my_control,
+                   tuneGrid=lassoGrid)
+
+lasso_mod$bestTune
+```
+
+
+
+```{r}
+min(lasso_mod$results$RMSE)
+```
+
+```{r}
+lassoVarImp=varImp(lasso_mod,scale=F)
+lassoImportance=lassoVarImp$importance
+
+varsSelected <- length(which(lassoImportance$Overall!=0))
+varsNotSelected <- length(which(lassoImportance$Overall==0))
+
+cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
+```
+
+
+Prediction
+```{r}
+LassoPred=predict(lasso_mod,test1)
+prediction_lasso=exp(LassoPred)
+head(prediction_lasso)
+```
+
+
+XGBoost
+
+
+```{r}
+xgb_grid=expand.grid(nrounds=1000,
+                     eta=c(.1,.05,.01),
+                     max_depth=c(2,3,4,5,6),
+                     gamma=0,
+                     colsample_bytree=1,
+                     min_child_weight=c(1,2,3,4,5),
+                     subsample=1
+)
+```
+
+Next step is to let the caret find the best hyperparameter values
+
+```{r}
+xgb_caret <- train(x=train1, y=all$SalePrice[!is.na(all$SalePrice)], method='xgbTree', trControl= my_control, tuneGrid=xgb_grid)
+```
+
+
+
 
 
 
