@@ -1209,7 +1209,7 @@ Droping the highly correlated variables , for example Garage cars and Garage Are
 ```{r}
 drop_var=c('YearRemodAdd','GarageArea','GarageYrBlt','TotRmsAbvGrd','TotalBsmtSF','ExterQual','GarageCond')
 
-all=all %>% select(-drop_var)
+all=all %>% select(-one_of(drop_var))
 ```
 
 
@@ -1414,11 +1414,63 @@ xgb_grid=expand.grid(nrounds=1000,
 Next step is to let the caret find the best hyperparameter values
 
 ```{r}
-xgb_caret <- train(x=train1, y=all$SalePrice[!is.na(all$SalePrice)], method='xgbTree', trControl= my_control, tuneGrid=xgb_grid)
+#xgb_caret <- train(x=train1, y=all$SalePrice[!is.na(all$SalePrice)], method='xgbTree', trControl= my_control, tuneGrid=xgb_grid)
+
+#xgb_caret$bestTune
+```
+
+Below is teh tunned parameters
+
+Max_depth=3
+eta=0.05
+Min_child_weight=4
+
+```{r}
+label_train=all$SalePrice[!is.na(all$SalePrice)]
+```
+
+create training & testing Dmatrix
+```{r}
+dtrain=xgb.DMatrix(data=as.matrix(train1),label=label_train)
+dtest=xgb.DMatrix(data=as.matrix(test1))
 ```
 
 
+creating xgboost parameters ,taking the tuned values from cross validation caret.
 
+```{r}
+default_param=list(objective="reg:linear",booster="gbtree",eta=0.05,gamma=0,max_depth=3,min_child_weight=4,subsample=1,colsample_bytree=1)
+```
+
+The next step is to cross validate to find the best number of rounds
+
+```{r}
+xgbcv=xgb.cv(params=default_param,data=dtrain,nrounds=500,nfold=5,showsd = T,stratified = T,print_every_n = 40,early_stopping_rounds = 10,maximize = F)
+```
+
+
+Trainign the model with best iteration found by cross validation
+
+```{r}
+xgb_mod=xgb.train(data=dtrain,params = default_param,nrounds=454)
+
+XGBPred=predict(xgb_mod,dtest)
+
+predictions_XGB=exp(XGBPred)
+
+head(predictions_XGB)
+```
+
+
+Viewing variable importance plot.
+
+```{r}
+library(Ckmeans.1d.dp)
+
+
+mat=xgb.importance(feature_names = colnames(train1),model=xgb_mod)
+xgb.ggplot.importance(importance_matrix = mat[1:20],rel_to_first = TRUE)
+```
 
 
 
